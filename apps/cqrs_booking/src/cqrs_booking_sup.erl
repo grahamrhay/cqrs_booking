@@ -26,10 +26,10 @@ start_link() ->
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
 init([]) ->
-    SupFlags = #{strategy => one_for_all,
-                 intensity => 0,
-                 period => 1},
-    ChildSpecs = [],
+    SupFlags = #{strategy => one_for_one},
+    ChildSpecs = [
+                  #{id=>cqrs_booking, start => {cqrs_booking, start_link, []}}
+                 ],
     {ok, {SupFlags, ChildSpecs}}.
 
 %% internal functions
