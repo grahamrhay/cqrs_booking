@@ -1,0 +1,6 @@
+-sname cqrs_booking
+
+-setcookie cqrs_booking_cookie
+
++K true
++A30
