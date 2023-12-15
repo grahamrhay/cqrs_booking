@@ -6,7 +6,7 @@
 
 -behaviour(gen_server).
 
--export([ init/1 , handle_call/3 , handle_cast/2 , handle_info/2 ]).
+-export([ init/1 , handle_call/3 , handle_cast/2 , handle_info/2, handle_continue/2 ]).
 
 -type state() :: #{}.
 
@@ -29,8 +29,7 @@ handle_call({book_room, Cmd}, _From, #{available_rooms:=AvailableRooms} = State)
     AvailableRoomsForHotel = maps:get(Hotel, AvailableRooms),
     AvailableRoomsForDay = maps:get(CheckIn, AvailableRoomsForHotel),
     [_RoomInfo] = lists:filter(fun(R) -> maps:get(id, R) == Room end, AvailableRoomsForDay),
-    self() ! {new_booking, Cmd},
-    {reply, ok, State};
+    {reply, ok, State, {continue, {new_booking, Cmd}}};
 handle_call({get_bookings, Client}, _From, #{bookings:=Bookings} = State) ->
     BookingsForClient = maps:get(Client, Bookings),
     {reply, {ok, BookingsForClient}, State};
@@ -43,7 +42,11 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 -spec handle_info(any(), state()) -> {noreply, state()}.
-handle_info({new_booking, {Client, _Hotel, _Room, _CheckIn, _CheckOut} = Cmd}, #{bookings:=Bookings} = State) ->
+handle_info(_Request, State) ->
+    {noreply, State}.
+
+-spec handle_continue(term(), state()) -> {noreply, state()}.
+handle_continue({new_booking, {Client, _Hotel, _Room, _CheckIn, _CheckOut} = Cmd}, #{bookings:=Bookings} = State) ->
     NewBookings = case maps:is_key(Client, Bookings) of
         true ->
             BookingsForClient = maps:get(Client, Bookings),
@@ -52,5 +55,5 @@ handle_info({new_booking, {Client, _Hotel, _Room, _CheckIn, _CheckOut} = Cmd}, #
             maps:put(Client, [Cmd], Bookings)
     end,
     {noreply, State#{bookings:=NewBookings}};
-handle_info(_Request, State) ->
+handle_continue(_Continue, State) ->
     {noreply, State}.
