@@ -47,5 +47,6 @@ unavailable_room_cannot_be_booked() ->
 new_state() ->
     #{
       available_rooms => cqrs_booking_hotels:get_available_rooms(),
-      bookings => #{}
+      bookings => #{},
+      version => 0
      }.

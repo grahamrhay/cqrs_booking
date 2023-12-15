@@ -18,18 +18,22 @@ start_link() ->
 init(unused) ->
     State = #{
               available_rooms => cqrs_booking_hotels:get_available_rooms(),
-              bookings => #{}
+              bookings => #{},
+              version => 0
              },
+    {ok, _Name} = dets:open_file(bookings, []),
     {ok, State}.
 
 -spec handle_call(any(), {pid(), any()}, state()) ->
     {reply, any(), state()} | {noreply, state()}.
-handle_call({book_room, Cmd}, _From, #{available_rooms:=AvailableRooms} = State) ->
+handle_call({book_room, Cmd}, _From, #{available_rooms:=AvailableRooms, version:=Version} = State) ->
     {Client, Hotel, Room, CheckIn, _CheckOut} = Cmd,
     AvailableRoomsForHotel = maps:get(Hotel, AvailableRooms),
     AvailableRoomsForDay = maps:get(CheckIn, AvailableRoomsForHotel),
     [_RoomInfo] = lists:filter(fun(R) -> maps:get(id, R) == Room end, AvailableRoomsForDay),
-    {reply, ok, State, {continue, {new_booking, Cmd}}};
+    NewVersion = Version + 1,
+    ok = dets:insert(bookings, {NewVersion, Cmd}),
+    {reply, ok, State#{version:=NewVersion}, {continue, {new_booking, Cmd}}};
 handle_call({get_bookings, Client}, _From, #{bookings:=Bookings} = State) ->
     BookingsForClient = maps:get(Client, Bookings),
     {reply, {ok, BookingsForClient}, State};
