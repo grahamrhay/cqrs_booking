@@ -24,19 +24,13 @@ init(unused) ->
 
 -spec handle_call(any(), {pid(), any()}, state()) ->
     {reply, any(), state()} | {noreply, state()}.
-handle_call({book_room, Cmd}, _From, #{available_rooms:=AvailableRooms, bookings:=Bookings} = State) ->
+handle_call({book_room, Cmd}, _From, #{available_rooms:=AvailableRooms} = State) ->
     {Client, Hotel, Room, CheckIn, _CheckOut} = Cmd,
     AvailableRoomsForHotel = maps:get(Hotel, AvailableRooms),
     AvailableRoomsForDay = maps:get(CheckIn, AvailableRoomsForHotel),
     [_RoomInfo] = lists:filter(fun(R) -> maps:get(id, R) == Room end, AvailableRoomsForDay),
-    NewBookings = case maps:is_key(Client, Bookings) of
-        true ->
-            BookingsForClient = maps:get(Client, Bookings),
-            maps:update(Client, [Cmd | BookingsForClient], Bookings);
-        false ->
-            maps:put(Client, [Cmd], Bookings)
-    end,
-    {reply, ok, State#{bookings:=NewBookings}};
+    self() ! {new_booking, Cmd},
+    {reply, ok, State};
 handle_call({get_bookings, Client}, _From, #{bookings:=Bookings} = State) ->
     BookingsForClient = maps:get(Client, Bookings),
     {reply, {ok, BookingsForClient}, State};
@@ -49,5 +43,14 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 -spec handle_info(any(), state()) -> {noreply, state()}.
+handle_info({new_booking, {Client, _Hotel, _Room, _CheckIn, _CheckOut} = Cmd}, #{bookings:=Bookings} = State) ->
+    NewBookings = case maps:is_key(Client, Bookings) of
+        true ->
+            BookingsForClient = maps:get(Client, Bookings),
+            maps:update(Client, [Cmd | BookingsForClient], Bookings);
+        false ->
+            maps:put(Client, [Cmd], Bookings)
+    end,
+    {noreply, State#{bookings:=NewBookings}};
 handle_info(_Request, State) ->
     {noreply, State}.
