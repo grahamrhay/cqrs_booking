@@ -37,7 +37,9 @@ start() ->
     Pid.
 
 clean_dets_files() ->
-    ok = case file:delete("bookings") of ok -> ok; {error, enoent} -> ok end.
+    lists:foreach(fun(F) ->
+                          ok = case file:delete(F) of ok -> ok; {error, enoent} -> ok end
+                  end, ["bookings", "snapshot"]).
 
 stop(Pid) ->
     ok = gen_server:stop(Pid).

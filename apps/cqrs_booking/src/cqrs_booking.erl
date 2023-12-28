@@ -18,18 +18,24 @@ start_link() ->
 
 -spec init(unused) -> {ok, state()}.
 init(unused) ->
-    Version = 0,
-    State = #{
-              available_rooms => cqrs_booking_hotels:get_available_rooms(),
-              bookings => #{},
-              version => Version
-             },
-    {ok, _Name} = dets:open_file(bookings, []),
-    MatchSpec = ets:fun2ms(fun({N,Cmd}) when N >= Version -> {N, Cmd} end),
+    {ok, _} = dets:open_file(snapshot, []),
+    Results = dets:lookup(snapshot, latest),
+    State = case length(Results) of
+        0 ->
+            new_state();
+        1 ->
+            [{latest, S}] = Results,
+            S
+    end,
+    {ok, _} = dets:open_file(bookings, []),
+    LatestVersion = maps:get(version, State),
+    io:format("Current version: ~p~n", [LatestVersion]),
+    MatchSpec = ets:fun2ms(fun({N,Cmd}) when N > LatestVersion -> {N, Cmd} end),
     ExistingBookings = lists:sort(fun({A,_}, {B,_}) -> A =< B end, dets:select(bookings, MatchSpec)),
-    io:format("Existing bookings: ~p~n", [ExistingBookings]),
+    io:format("Replaying bookings: ~p~n", [ExistingBookings]),
     NewBookings = lists:foldl(fun({_, Cmd}, B) -> add_new_booking(Cmd, B) end, maps:get(bookings, State), ExistingBookings),
-    {ok, State#{bookings:=NewBookings, version:=Version + length(ExistingBookings)}}.
+    erlang:send_after(60 * 1000, self(), save_snapshot),
+    {ok, State#{bookings:=NewBookings, version:=LatestVersion + length(ExistingBookings)}}.
 
 -spec handle_call(any(), {pid(), any()}, state()) ->
     {reply, any(), state()} | {noreply, state()}.
@@ -53,6 +59,10 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 -spec handle_info(any(), state()) -> {noreply, state()}.
+handle_info(save_snapshot, State) ->
+    io:format("Saving snapshot~n", []),
+    ok = dets:insert(snapshot, {latest, State}),
+    {noreply, State};
 handle_info(_Request, State) ->
     {noreply, State}.
 
@@ -75,3 +85,10 @@ add_new_booking({Client, _Hotel, _Room, _CheckIn, _CheckOut} = Cmd, Bookings) ->
         false ->
             maps:put(Client, [Cmd], Bookings)
     end.
+
+new_state() ->
+    #{
+      available_rooms => cqrs_booking_hotels:get_available_rooms(),
+      bookings => #{},
+      version => 0
+     }.
