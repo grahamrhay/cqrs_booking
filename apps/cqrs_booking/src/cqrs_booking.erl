@@ -17,12 +17,29 @@ start_link() ->
 -spec init(unused) -> {ok, state()}.
 init(unused) ->
     State = #{
-              available_rooms => cqrs_booking_hotels:get_available_rooms()
+              available_rooms => cqrs_booking_hotels:get_available_rooms(),
+              bookings => #{}
              },
     {ok, State}.
 
 -spec handle_call(any(), {pid(), any()}, state()) ->
     {reply, any(), state()} | {noreply, state()}.
+handle_call({book_room, Cmd}, _From, #{available_rooms:=AvailableRooms, bookings:=Bookings} = State) ->
+    {Client, Hotel, Room, CheckIn, _CheckOut} = Cmd,
+    AvailableRoomsForHotel = maps:get(Hotel, AvailableRooms),
+    AvailableRoomsForDay = maps:get(CheckIn, AvailableRoomsForHotel),
+    [_RoomInfo] = lists:filter(fun(R) -> maps:get(id, R) == Room end, AvailableRoomsForDay),
+    NewBookings = case maps:is_key(Client, Bookings) of
+        true ->
+            BookingsForClient = maps:get(Client, Bookings),
+            maps:update(Client, [Cmd | BookingsForClient], Bookings);
+        false ->
+            maps:put(Client, [Cmd], Bookings)
+    end,
+    {reply, ok, State#{bookings:=NewBookings}};
+handle_call({get_bookings, Client}, _From, #{bookings:=Bookings} = State) ->
+    BookingsForClient = maps:get(Client, Bookings),
+    {reply, {ok, BookingsForClient}, State};
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 

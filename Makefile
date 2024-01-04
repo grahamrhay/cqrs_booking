@@ -11,3 +11,6 @@ release:
 
 console:
 	docker run --rm -it -v ${PWD}:/app -w /app erlang:26 _build/default/rel/cqrs_booking/bin/cqrs_booking console
+
+test:
+	docker run --rm -v ${PWD}:/app -w /app erlang:26 ./rebar3 eunit
